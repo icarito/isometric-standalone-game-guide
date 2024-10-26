@@ -1,0 +1,2 @@
+switch EXSWS0 on pic EXSWS1 tics 0 sound "switches/normbutn"
+	

@@ -1,0 +1,117 @@
+DefaultListMenu
+{
+	Font "BigFont", "Untranslated"
+	LineSpacing 20
+	Selector "graphics/m_selector.png", -32, -5
+	Font "BigUpper", "White"
+	LineSpacing 18
+}
+
+//-------------------------------------------------------------------------------------------
+//
+//
+//
+//-------------------------------------------------------------------------------------------
+
+ListMenu "MainMenu"
+{
+	LineSpacing 16
+	Position 97, 72
+	StaticText 74, 16, "$TXT_GAME_NAME"
+	TextItem "$MNU_NEWGAME", "n", "PlayerclassMenu"
+	TextItem "$MNU_OPTIONS", "o", "OptionsMenu"
+	TextItem "$MNU_LOADGAME", "l", "LoadGameMenu"
+	TextItem "$MNU_SAVEGAME", "s", "SaveGameMenu"
+	TextItem "$MNU_QUITGAME", "q", "QuitMenu"
+}
+
+
+AddOptionMenu "OptionsMenuSimple"
+{
+	SubMenu "Isometric Mode Options", "IsoModOptions"
+}
+
+OptionValue "KeyboardCtrlType"
+{
+    0, "Relative to Actor"
+    1, "Relative to Camera"
+}
+
+AddOptionMenu "OptionsMenu"
+{
+	SubMenu "Isometric Mode Options", "IsoModOptions"
+}
+
+OptionMenu "IsoModOptions"
+{
+    Title "Isometric Mode Options (Hardware Renderers only)"
+    Option "Isometric Fog of War", "r_radarclipper", "OnOff"
+    Option "Visibility Through Level Geometry", "r_dithertransparency", "OnOff"
+	// Control "Toggle Aim Assist", "iso_aim_assist"
+	Option "Aim at Monsters Only", "IsoAimMonstersOnly", "OnOff"
+	Slider "Aim Assist Max. Distance", IsoAimAssistMaxDist, 100, 5000, 100
+	Option "Movement Keys", "IsoControlType", "KeyboardCtrlType"
+
+    StaticText ""
+    StaticText "Viewpoint Rotation Control"
+    Control "Rotate Left", "rotate_cam_left"
+    Control "Rotate Right", "rotate_cam_right"
+    Control "Center Camera", "center_cam"
+    StaticText ""
+    StaticText "Other Quality of Life Controls"
+	Control "Cycle Select Switches/Objects", "cycle_select"
+	Control "Use Selected Switches/Objects", "use_selected"
+	Control "Clear Selection", "clear_select"
+	Control "Attack/Move to Mouse Cursor", "+attack"
+	Control "Alt-Attack/Use/Pickup Mouse-Pointed Entity", "+altattack"
+	Control "Stand Still and Fire", "hip_fire_mode"
+	Control "Hold Fire and Move", "flee_mode"
+}
+
+//-------------------------------------------------------------------------------------------
+//
+//
+//
+//-------------------------------------------------------------------------------------------
+
+ListMenu "EpisodeMenu"
+{
+	NetgameMessage "$NEWGAME"
+	Position 48, 63
+	StaticText 54, 38, "$MNU_EPISODE"
+}
+
+//-------------------------------------------------------------------------------------------
+//
+//
+//
+//-------------------------------------------------------------------------------------------
+
+ListMenu "SkillMenu"
+{
+	StaticText 74, 16, "$MNU_CHOOSESKILL"
+	Position 160, 44
+}
+
+//-------------------------------------------------------------------------------------------
+//
+//
+//
+//-------------------------------------------------------------------------------------------
+
+ListMenu "LoadGameMenu"
+{
+	NetgameMessage "$LOADNET"
+	StaticTextCentered 160, -10, "$MNU_LOADGAME"
+	Position 80, 54
+	Class "LoadMenu"
+	//Size Clean
+}
+
+ListMenu "SaveGameMenu"
+{
+	StaticTextCentered 160, -10, "$MNU_SAVEGAME"
+	Position 80, 54
+	Class "SaveMenu"
+	//Size Clean
+}

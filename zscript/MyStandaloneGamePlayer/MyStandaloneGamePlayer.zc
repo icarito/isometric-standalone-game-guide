@@ -1,0 +1,521 @@
+class MyStandaloneGamePlayer : PlayerPawn
+{
+	// Camera variables
+	int face_cam_mult;
+	double diffangle;
+	bool isocam_keypressed;
+	double ppawn_isoyaw, ppawn_isodist, ppawn_isopitch;
+	static const double camyaw[] = {180, 225, 270, 315, 0, 45, 90, 135}; // degrees
+	int ppawn_isoviewpoint, ppawn_camflags;
+	bool fancy_screen_rotate, isocam_changing;
+	Actor ppawn_isocamera;
+	int ctrltype;
+	cvar isoctrltype, isomonstersonly;
+	int debounce_timer;
+	int debounce_ticks;
+
+	property ppawn_isoyaw : ppawn_isoyaw;
+	property ppawn_isodist : ppawn_isodist;
+	property ppawn_isopitch : ppawn_isopitch;
+	property ppawn_isocamera : ppawn_isocamera;
+
+	// Mouse movement and control
+	int mousex, mousey, mx, my;
+	int mxmax, mymax;
+	float msense;
+	double plrpitch;
+	bool hipfire, fleemode, pointmonster, pointshootable, pointusable;
+
+	property mousex : mousex;
+	property mousey : mousey;
+	property hipfire : hipfire;
+	property fleemode : fleemode;
+	property pointmonster : pointmonster; // Mouse is pointing at monster
+	property pointshootable : pointshootable; // Mouse is pointing at shootable object
+	property pointusable : pointusable; // Mouse is pointing at usable object/line
+	property plrpitch : plrpitch; // Pitch to adopt when aim-assist in hipfire mode returns negative
+
+	// Screenspace projection variables
+	double myfov, xscale, yscale, aspratio, xproj, yproj, zproj;
+
+	Default
+	{
+		Speed 1;
+		Health 100;
+		Radius 20;
+		Height 80;
+		Mass 100;
+		PainChance 255; // 255 == 100%
+		Player.UseRange 80; // Doom default is 64
+		Player.DisplayName "BaldGuy";
+		Player.CrouchSprite "PLYC";
+		Player.ViewHeight 60;
+		Player.ViewBob 0;
+		Player.FlyBob 0;
+		// Player.StartItem "MyPlasmaPistol";
+		// Player.StartItem "MyCell", 5;
+		Player.StartItem "MyFist";
+		Player.WeaponSlot 1, "MyFist";
+		Player.WeaponSlot 2, "MyPlasmaPistol";
+		MyStandaloneGamePlayer.ppawn_isoyaw 225;
+		MyStandaloneGamePlayer.ppawn_isodist 300;
+		MyStandaloneGamePlayer.ppawn_isopitch 30;
+		MyStandaloneGamePlayer.mousex 0;
+		MyStandaloneGamePlayer.mousey 0;
+		MyStandaloneGamePlayer.hipfire false;
+		MyStandaloneGamePlayer.fleemode false;
+		MyStandaloneGamePlayer.plrpitch 0;
+		+ISOMETRICSPRITES
+		-PICKUP // Don't auto-pickup things by walking over them
+	}
+
+	void UpdateScreenProjVars()
+	{
+		if (player.camera && player.camera == ppawn_isocamera)
+		{
+			xscale = 0.375*( screenblocks >= 10 ? Screen.GetWidth() : 0.1*screenblocks*Screen.GetWidth() );
+			myfov = (player.camera.player ? player.camera.player.FOV : player.camera.CameraFOV);
+			xscale *= 1.0/tan(clamp(myfov, 5.0, 170.0) * 0.5);
+			aspratio = (1.0 * Screen.GetWidth()) / (1.0 * Screen.GetHeight());
+			if (aspratio > 1.0) xscale *= 1.777778/aspratio;
+			yscale = 1.253229 - 0.0616458*sin(player.camera.pitch)*sin(player.camera.pitch) - 0.191609*sin(player.camera.pitch);
+			xproj = xscale/player.camera.ViewPos.offset.length();
+			yproj = Sin(player.camera.pitch)*xproj*yscale;
+			zproj = Cos(player.camera.pitch)*xproj*yscale;
+		}
+	}
+	
+	int, int GetScreenXY(Vector3 relpos)
+	{
+		int sx, sy;
+		double  diffang = deltaangle(relpos.Angle(), player.camera.angle);
+		sx = (int)( relpos.xy.length() * Sin(diffang) * xproj );
+		sy = (int)( -relpos.xy.length() * Cos(diffang) * yproj - relpos.z * zproj );
+		// sy -= (screenblocks <= 10 ? (int)(yscale*StatusBar.RelTop) : 0); // Can't do this since ui field RelTop can't be read from play context
+		return sx, sy;
+	}
+
+	void SetupIsometricCamera()
+	{
+		
+		if(player.camera == player.mo || (player.camera && player.camera.GetClassName() != 'SpectatorCamera')) // Setup isometric camera
+	    {
+			player.camera = SpectatorCamera(Actor.Spawn("SpectatorCamera", pos));
+			player.camera.player = player; // Necessary for pain and pickup screen flashes. Adds viewbob too.
+			ppawn_isocamera = player.camera; // Store pointer, in case you lose it
+			player.camera.tracer = player.mo; // Do you want the camera to follow any actor? Set it as tracer here.
+	    }
+		SpectatorCamera(player.camera).Init(ppawn_isodist, ppawn_isoyaw, ppawn_isopitch, ppawn_camflags);
+		// SpectatorCamera(player.camera).lagdistance = 150.0; // Use for a lazy camera that only follows if you get away from center
+		// SpectatorCamera(player.camera).chasemode = 2; // 0: chase until tracer centered, 1: same but only when tracer is moving, 2: stop chase if tracer within lagdistance
+	}
+
+	override void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		face_cam_mult = 1; fancy_screen_rotate = true; isocam_changing = false; ppawn_isoviewpoint = 1;
+		ppawn_camflags = VPSF_ABSOLUTEOFFSET | VPSF_ALLOWOUTOFBOUNDS | VPSF_ORTHOGRAPHIC;
+		isocam_keypressed = false;	  
+		SetupIsometricCamera();
+		isoctrltype = CVar.GetCVar("IsoControlType", self.player);
+		isomonstersonly = CVar.GetCVar("IsoAimMonstersOnly", self.player);
+		if (level.MapName == "MAP01")
+		{
+			player.camera.A_Print("Use 'Q' and 'E' to Rotate Camera View by 90 degrees.\n\n\nUse 'F' when stationary to select objects\n\nand 'G' to interact with them.\n\n\n'Shift' to fire from place. 'Alt' to force-move.", 10, "BIGUPPER");
+		}
+
+		mx = 0; my = 0;
+		msense = 20.0; // Bigger means slower
+		mxmax = (int)(msense*0.5*Screen.GetWidth());
+		mymax = (int)(msense*0.5*Screen.GetHeight());
+
+		debounce_timer = 0;
+		debounce_ticks = 10; // Things cannot be repeatedly switched/used faster than this
+	}
+
+	void rotate_camera(int viewchange)
+	{
+	    isocam_changing = true;
+	    ppawn_isoviewpoint += viewchange;
+	    if(ppawn_isoviewpoint < 0) ppawn_isoviewpoint = 7;
+	}
+
+	int, Vector3, actor, Line ScanTrace(int sx, int sy)
+	{
+		int validloc = TRACE_HitNone;
+		actor pointedmo = NULL;
+		Line pointedln = NULL;
+		pointmonster = false; pointshootable = false; pointusable = false;
+		Vector3 hitloc = (ppawn_isocamera ? ppawn_isocamera.pos : pos);
+		int firsttraceflags = TRF_THRUACTORS | TRF_THRUBLOCK | TRF_THRUHITSCAN;
+		double offsetz = 0.5 * ( ppawn_isocamera && ppawn_isocamera.tracer ? ppawn_isocamera.tracer.height : height );
+		Vector2 sxy = (sx/xproj, -sy/yproj); // sy is positive for bottom half of screen
+		double relposdist = sxy.length();
+		double screenang = sxy.Angle();
+		double worldang = deltaangle(-player.camera.angle, -90+screenang); // deltaangle(-ppawn_isoyaw, -90+screenang);
+		double azimax = atan2(ppawn_isodist*1.0, relposdist);
+		hitloc = pos + (relposdist*Cos(worldang), relposdist*Sin(worldang), offsetz);
+
+		FLineTraceData t, t2;
+		int trf_flags = TRF_ABSPOSITION | TRF_THRUACTORS | TRF_THRUBLOCK | TRF_THRUHITSCAN;
+		int trf_flags2 = TRF_ABSPOSITION | TRF_ALLACTORS | TRF_THRUBLOCK | TRF_THRUHITSCAN;
+		Vector3 dir = (Cos(deltaangle(180, ppawn_isoyaw))*Cos(ppawn_isopitch),
+					   Sin(deltaangle(180, ppawn_isoyaw))*Cos(ppawn_isopitch), Sin(ppawn_isopitch));
+		for (double mylen = 3.0*tan(azimax)*relposdist; mylen > -tan(azimax)*relposdist; mylen -= offsetz)	
+		{
+			Vector3 inhitloc = hitloc + mylen*dir;
+			if (level.IsPointInLevel(inhitloc))
+			{
+				/* let spot = Spawn("ToM_DebugSpot", inhitloc); */
+				/* spot.A_SetHealth(1); */
+				// Shoot trace towards (anti-parallel to) camera
+				if (LineTrace(deltaangle(180, ppawn_isoyaw), ppawn_isodist*3, -ppawn_isopitch, trf_flags,
+							  inhitloc.z, inhitloc.x, inhitloc.y, data:t))
+				{
+					inhitloc = t.HitLocation - 0.1 * dir;
+					// Shoot trace away from (parallel to) camera
+					if(LineTrace(ppawn_isoyaw, ppawn_isodist*3, ppawn_isopitch, trf_flags2,
+								 inhitloc.z, inhitloc.x, inhitloc.y, data:t2))
+					{						
+						/* let spot = Spawn("ToM_DebugSpot", t2.hitlocation); */
+						/* spot.A_SetHealth(1); */
+						/* spot.SetShade(0xFFFF0000); */
+						inhitloc = t2.HitLocation;
+						Vector3 dummy = level.vec3diff(pos, inhitloc);
+						plrpitch = atan2(pos.z + Player.ViewHeight*Player.crouchfactor - inhitloc.z, dummy.xy.length());
+						if (t2.HitType == TRACE_HitActor && t2.HitActor)
+						{
+							pointmonster = t2.HitActor.bISMONSTER;
+							pointshootable = t2.HitActor.bSHOOTABLE;
+							pointusable = !(t2.HitActor.player || t2.HitActor.bISMONSTER || t2.HitActor.bCORPSE
+											|| t2.HitActor.bMASTERNOSEE || t2.HitActor.bONLYVISIBLEINMIRRORS
+											|| t2.HitActor.bDORMANT || t2.HitActor.bINVISIBLE || t2.HitActor.bMISSILE
+											|| t2.HitActor.bNOINTERACTION || t2.HitActor.bICECORPSE
+											|| t2.HitActor.bCRASHED || t2.HitActor.bINCONVERSATION);
+							/* console.printf("%s\n", t2.HitActor.GetClassName()); */
+							validloc = TRACE_HitActor;
+							pointedmo = t2.HitActor;
+						}
+						else if (t2.HitType == TRACE_HitWall && t2.HitLine && t2.HitTexture && t2.HitTexture.IsValid())
+						{
+							pointusable = (t2.HitLine.activation & (SPAC_Use | SPAC_UseThrough | SPAC_UseBack));
+							pointusable &= (t2.HitLine.special != 0);
+							validloc = TRACE_HitWall;
+							pointedln = t2.HitLine;
+						}
+						else if (t2.HitType == TRACE_HitFloor)
+						{
+							validloc = TRACE_HitFloor;
+							inhitloc.z += offsetz;
+						}
+					}
+				}
+				hitloc = inhitloc;
+				break;
+			}
+		}
+		return validloc, hitloc, pointedmo, pointedln;
+	}
+
+	override void Tick()
+	{	  
+	   if (player.camera == player.mo)
+	   {
+		   // If some other level camera takes over player.camera for a scripted sequence and returns the pointer to player.mo
+		   if (ppawn_isocamera) player.camera = ppawn_isocamera;
+		   SetupIsometricCamera();
+		   
+	   }
+
+	   UpdateScreenProjVars();
+	   
+	  // Handle Camera movement (Input is is being done by the CameraRotator EventHandler)
+	  if(isocam_changing) {
+	    if(fancy_screen_rotate) { // Fancy screen rotation
+	      float angdiff = 0.125*(camyaw[ppawn_isoviewpoint % 8] - ppawn_isoyaw);
+	      if (abs(angdiff) > 5.25) {
+		if (angdiff > 22.5) angdiff -= 45.0;
+		else if (angdiff < -22.5) angdiff += 45.0;
+		if(abs(angdiff) > 5.25)
+		  ppawn_isoyaw += (int)(angdiff);
+		else ppawn_isoyaw = camyaw[ppawn_isoviewpoint % 8];
+	      } else ppawn_isoyaw = camyaw[ppawn_isoviewpoint % 8];
+	    }
+		else ppawn_isoyaw = camyaw[ppawn_isoviewpoint % 8]; // No fancy screen rotation
+
+	    SpectatorCamera(player.camera).Init(ppawn_isodist, ppawn_isoyaw, ppawn_isopitch, -1);
+	    if(ppawn_isoyaw == camyaw[ppawn_isoviewpoint % 8]) isocam_changing = false;
+	  }
+
+	  diffangle = deltaangle(angle, ppawn_isoyaw);
+	  if (abs(diffangle) > 90) face_cam_mult = -1;
+	  else face_cam_mult = 1;
+
+	  mxmax = (int)(msense*0.5*Screen.GetWidth());
+	  mymax = (int)(msense*0.5*Screen.GetHeight());
+
+	  if (debounce_timer > 0) debounce_timer--;
+
+	  Super.Tick();
+
+	  // Make movement less slippery (borrowed from NashMovement.pk3)
+	  if((Pos.Z == FloorZ) || bONMOBJ){
+	    A_SetSpeed(3.0);
+	    if((FindState('Pain') == NULL) || (CurState != FindState('Pain'))) {
+	      Vel.X *= 0.5; Vel.Y *= 0.5;
+	    }
+	  }
+	}
+
+	//get shorted xy-distance between actor and line
+	static double shortest_dxy(Actor mo, Line ln)
+	{
+		double lnlength = (ln.v1.p - ln.v2.p).length();
+		if (lnlength == 0.0) return (mo.pos.xy - ln.v1.p).length();
+		else
+		{
+			return abs((ln.v2.p.y - ln.v1.p.y)* mo.pos.x - (ln.v2.p.x - ln.v1.p.x)* mo.pos.y
+					   + ln.v2.p.x * ln.v1.p.y - ln.v2.p.y * ln.v1.p.x) / lnlength;
+		}
+	}
+
+	bool TryInteract(int tracehittype, Actor mo, Line ln)
+	{
+		bool withinuserange = false;
+
+		if (tracehittype == TRACE_HitActor && mo)
+		{
+			if ((Distance3D(mo) < UseRange + mo.Radius) && CheckSight(mo))
+			{
+				withinuserange = true;
+				if (debounce_timer == 0)
+				{
+					debounce_timer = debounce_ticks;
+					if (mo.bSPECIAL) mo.Touch(self);
+					else if (mo.bUSESPECIAL && mo.health > 0)
+					{
+						// This whole segment is only for old DECORATE type activate functions
+						if (mo.activationtype & (THINGSPEC_Activate | THINGSPEC_Deactivate | THINGSPEC_Switch))
+						{
+							if ((mo.activationtype & THINGSPEC_Switch)
+								&& !(mo.activationtype & (THINGSPEC_Activate | THINGSPEC_Deactivate)))
+							{
+								mo.activationtype |= THINGSPEC_Activate;
+							}
+							// Can it be activated?
+							if (mo.activationtype & THINGSPEC_Activate)
+							{
+								mo.activationtype &= ~THINGSPEC_Activate; // Clear flag
+								if (mo.activationtype & THINGSPEC_Switch) // Set other flag if switching
+									mo.activationtype |= THINGSPEC_Deactivate;
+								mo.Activate(self);
+							}
+							// If not, can it be deactivated?
+							else if (mo.activationtype & THINGSPEC_Deactivate)
+							{
+								mo.activationtype &= ~THINGSPEC_Deactivate; // Clear flag
+								if (mo.activationtype & THINGSPEC_Switch)	// Set other flag if switching
+									mo.activationtype |= THINGSPEC_Activate;
+								mo.Deactivate(self);
+							}
+						}
+					}
+					else if (!mo.Used(self)) A_StartSound("misc/noselect", CHAN_ITEM);
+				} // debounce_timer
+			} // Distance3D
+		}
+		else if (tracehittype == TRACE_HitWall && ln)
+		{
+			if (shortest_dxy(self, ln) < UseRange)
+			{
+				withinuserange = true;
+				player.cmd.buttons |= BT_USE;
+			}
+		}
+		return withinuserange;
+	}
+	
+	override void MovePlayer ()
+	{
+	  UserCmd cmd = player.cmd;
+	  let player = self.player;
+	  // A_SetPitch(0); // Cancelling pitch modification probably bad for hipfiring
+
+	  cmd.yaw -= GetPlayerInput(INPUT_YAW); // Cancel default mouse-turn first
+
+	  ctrltype = isoctrltype.GetInt();
+	  if (ctrltype == 0) // movement directions relative to player pawn
+	  {
+		  if(cmd.sidemove) cmd.sidemove *= face_cam_mult;
+	  }
+	  else // if (ctrltype == 1) // movement directions relative to camera
+	  {
+		  int smove = cmd.sidemove;
+		  int fmove = cmd.forwardmove;
+		  if(diffangle > 45+22.5 && diffangle < 135-22.5) // facing towards right of screen
+		  {
+			  cmd.sidemove = -fmove;
+			  cmd.forwardmove = smove;
+		  }
+		  else if(diffangle > -135+22.5 && diffangle < -45-22.5) // facing towards left of screen
+		  {
+			  cmd.sidemove = fmove;
+			  cmd.forwardmove = -smove;
+		  }
+		  else if(diffangle > 22.5 && diffangle < 45+22.5) // NW
+		  {
+			  cmd.sidemove = (int)(0.707*(smove-fmove));
+			  cmd.forwardmove = (int)(0.707*(smove+fmove));
+		  }
+		  else if(diffangle < -22.5 && diffangle > -45-22.5) // NE
+		  {
+			  cmd.sidemove = (int)(0.707*(smove+fmove));
+			  cmd.forwardmove = (int)(0.707*(-smove+fmove));
+		  }
+		  else if(diffangle > 135-22.5 && diffangle < 135+22.5) // SW
+		  {
+			  cmd.sidemove = (int)(0.707*(-smove-fmove));
+			  cmd.forwardmove = (int)(0.707*(smove-fmove));
+		  }
+		  else if(diffangle < -135+22.5 && diffangle > -135-22.5) // SE
+		  {
+			  cmd.sidemove = (int)(0.707*(-smove+fmove));
+			  cmd.forwardmove = (int)(0.707*(-smove-fmove));
+		  }
+		  else
+		  {
+			  cmd.sidemove *= face_cam_mult;
+			  cmd.forwardmove *= face_cam_mult;
+		  }
+	  }
+
+	  // Handle mouse movement on screenspace
+	  int inyaw = GetPlayerInput(INPUT_YAW);
+	  int inpitch = GetPlayerInput(INPUT_PITCH);
+	  mx = clamp(mx - inyaw, -mxmax, mxmax);
+	  my = clamp(my - inpitch, -mymax, mymax);
+	  mousex = (int)(mx/msense);
+	  mousey = (int)(my/msense);
+
+	  int validloc = TRACE_HitNone;
+	  Vector3 hitloc;
+	  actor pointedmo = NULL;
+	  Line pointedln = NULL;
+	  [validloc, hitloc, pointedmo, pointedln] = ScanTrace(mousex, mousey); // Is the mouse cursor pointing at an interactable?
+
+	  int plrx = 0;
+	  int plry = 0;
+	  if (ppawn_isocamera) [plrx, plry] = GetScreenXY(level.vec3diff(ppawn_isocamera.pos, pos));
+	  diffangle = deltaangle(angle, ppawn_isoyaw);
+	  double diffangle2 = deltaangle(-90, atan2((mousey-plry)/yproj, (mousex-plrx)/xproj));
+	  if (validloc != TRACE_HitNone) diffangle2 = level.vec3diff(pos, hitloc).Angle();
+	  int buttons = player.cmd.buttons;
+	  if (buttons & (BT_ATTACK | BT_ALTATTACK) || hipfire || fleemode)
+	  {
+		  if (validloc != TRACE_HitNone) A_SetAngle(diffangle2, SPF_INTERPOLATE); // Turn to face the mouse cursor
+		  else A_SetAngle(angle + deltaangle(diffangle2, diffangle), SPF_INTERPOLATE);
+
+		  bool movefwd = false; // Move towards mouse cursor
+		  bool interact = false; // Interact with object/line the cursor is pointing at
+
+		  if (fleemode && (buttons & BT_ATTACK))
+		  {
+			  movefwd = true;
+		  }
+		  else if (!fleemode && !hipfire)
+		  {
+			  if ((buttons & (BT_ATTACK | BT_ALTATTACK)) && (isomonstersonly.GetBool() ? pointmonster : pointshootable))
+			  {
+				  if (!CheckSight(pointedmo) || (player.readyweapon && player.readyweapon.bMELEEWEAPON && pointedmo
+												 && (Distance3D(pointedmo) > MeleeRange + MELEEDELTA + pointedmo.Radius)))
+				  {
+					  movefwd = true;
+				  }
+				  else
+				  {
+					  A_SetPitch(plrpitch); // Fire away
+				  }
+			  }
+			  else if ((buttons & BT_ALTATTACK) && pointusable)
+			  {
+				  interact = TryInteract(validloc, pointedmo, pointedln);
+				  movefwd = !interact;
+			  }
+			  else if (buttons & BT_ATTACK)
+			  {
+				  movefwd = true;
+			  }
+		  }
+		  
+		  if (movefwd || interact)
+		  {
+			  if (buttons & BT_ATTACK) player.cmd.buttons ^= BT_ATTACK; // Cancel default attack action
+			  if (buttons & BT_ALTATTACK) player.cmd.buttons ^= BT_ALTATTACK; // Cancel default alt-attack action
+
+			  if (movefwd)
+			  {
+				  player.cmd.forwardmove = (buttons & BT_RUN ? 12800 : 6400);
+				  player.cmd.buttons |= BT_FORWARD;
+			  }
+		  }
+
+	  }
+
+	  Super.MovePlayer();
+	}
+	
+	States
+	{
+	Spawn:
+		PLAY A -1;
+		Loop;
+	See:
+		PLAY ABC 4;
+		PLAY D 1 A_StartSound("body/foot1", CHAN_BODY);
+		PLAY D 3;
+		Loop;
+	Missile:
+		PLAY A 12;
+		Goto Spawn;
+	Melee:
+		PLAY A 6 BRIGHT;
+		Goto Missile;
+	Pain:
+		PLAY A 4;
+		PLAY A 4 A_Pain();
+		Goto Spawn;
+	Death:
+		PLAY A 0 A_PlayerSkinCheck("AltSkinDeath");
+	Death1:
+		PLAY A 10;
+		PLAY A 10 A_PlayerScream();
+		PLAY A 10 A_NoBlocking();
+		PLAY AAA 10;
+		PLAY A -1;
+		Stop;
+	XDeath:
+		PLAY A 0 A_PlayerSkinCheck("AltSkinXDeath");
+	XDeath1:
+		PLAY A 5;
+		PLAY A 5 A_XScream();
+		PLAY A 5 A_NoBlocking();
+		PLAY AAAAA 5;
+		PLAY A -1;
+		Stop;
+	AltSkinDeath:
+		PLAY A 6;
+		PLAY A 6 A_PlayerScream();
+		PLAY AA 6;
+		PLAY A 6 A_NoBlocking();
+		PLAY AAA 6;
+		PLAY A -1;
+		Stop;
+	AltSkinXDeath:
+		PLAY A 5 A_PlayerScream();
+		PLAY A 0 A_NoBlocking();
+		PLAY A 5 A_SkullPop();
+		PLAY AAAAAA 5;
+		PLAY A -1;
+		Stop;
+	}
+}
