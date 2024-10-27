@@ -462,9 +462,10 @@ class MyStandaloneGamePlayer : PlayerPawn
 			  if (buttons & BT_ATTACK) player.cmd.buttons ^= BT_ATTACK; // Cancel default attack action
 			  if (buttons & BT_ALTATTACK) player.cmd.buttons ^= BT_ALTATTACK; // Cancel default alt-attack action
 
-			  if (nolos2shootable)
+			  if (nolos2shootable && debounce_timer == 0)
 			  {
 				  A_StartSound ("weapons/fistoof", CHAN_WEAPON); // no line-of-sight to attempted shooting target
+				  debounce_timer = debounce_ticks;
 			  }
 			  if (movefwd)
 			  {
