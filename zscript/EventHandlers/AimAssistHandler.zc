@@ -170,12 +170,13 @@ class AimAssistHandler : StaticEventHandler
 	    {
 			if (lookingup[i].GetBool()) players[i].mo.A_SetPitch(-45);
 			else if (lookingdown[i].GetBool()) players[i].mo.A_SetPitch(45);
-			else if (MyStandaloneGamePlayer(players[i].mo).hipfire && !doAim(i))
+			else if (!MyStandaloneGamePlayer(players[i].mo).fleemode && !doAim(i))
 			{
 				players[i].mo.A_SetPitch(
 										 (MyStandaloneGamePlayer(players[i].mo).plrpitch > 5 ? // Avoid hipfire to ground
 										  0 : MyStandaloneGamePlayer(players[i].mo).plrpitch) );
 			}
+			else players[i].mo.A_SetPitch(0);
 	    }
 	  }
 	}

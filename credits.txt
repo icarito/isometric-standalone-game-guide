@@ -85,3 +85,5 @@ Images:
 - TLMPB0.png
 - TLMPC0.png
 - TLMPD0.png
+
+Sprite ACWEZ0.png is from JekyllGrim's Alice: Toys of Madness: https://github.com/jekyllgrim/Alice-Toys-of-Madness

@@ -22,6 +22,9 @@ Based off of a Game template created by Nash Muhandes
 The sound effects, and some textures and sprites are from Doom 2 by id
 software.
 
+The Sprite ACWEZ0.png is from JekyllGrim's Alice: Toys of Madness:
+https://github.com/jekyllgrim/Alice-Toys-of-Madness
+	
 All other assets except the fonts are licensed under CC-0.
 
 For more details, read license.txt and credits.txt.

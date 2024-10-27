@@ -74,7 +74,7 @@ Class CylCorpse : actor
   {
 	  Super.BeginPlay();
 	  bCrashed = true; // Use this instead to prevent "use selection"
-	  // ChangeStatNum(Thinker.STAT_FIRST_THINKING - 1); // For performanec (dangerous code)
+	  // ChangeStatNum(Thinker.STAT_FIRST_THINKING - 1); // For performance (dangerous code)
 	  // For things spawned after play begins that don't need to interact or animate
 	  // If +SOLID flag enabled, it will still collide with geometry
 	  // Won't work well on elevators or moving platforms though, lol
