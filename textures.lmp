@@ -16,7 +16,7 @@ Sprite CYC1A0, 49, 51
 	offset 25, 57
 }
 
-// Swi (TechLamp)	
+// Swi (TechLamp)
 Sprite TLMPA0, 23, 80
 {
 	Patch "sprites/swi_lamp/TLMPA0.png", 0, 0
