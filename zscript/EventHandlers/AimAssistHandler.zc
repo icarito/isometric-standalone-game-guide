@@ -134,8 +134,9 @@ class AimAssistHandler : StaticEventHandler
 		  double pitch_diff = pawn.DeltaAngle(pawn.pitch, target_pitch);
 
 		  double rot_speed = 10.0;
-		  /*
-		  if (aimassist.GetBool()) // Removing this from mouse-control (angle now set in MovePlayer() by hipfire/flee mode keys)
+
+		  // if (aimassist.GetBool()) // (angle now set in MovePlayer() by hipfire/flee mode keys)
+		  if (!MyStandaloneGamePlayer(players[pnum].mo).fleemode)
 		  {
 		    //check rotation speed
 		    if(abs(angle_diff) > rot_speed){
@@ -146,7 +147,6 @@ class AimAssistHandler : StaticEventHandler
 		      pawn.A_SetAngle(target_angle, SPF_INTERPOLATE);
 		    }
 		  }
-		  */
 		  
 		  if(abs(pitch_diff) > rot_speed){
 		    //if rotation speed is lower than difference, add/subtract rotation speed
@@ -172,11 +172,9 @@ class AimAssistHandler : StaticEventHandler
 			else if (lookingdown[i].GetBool()) players[i].mo.A_SetPitch(45);
 			else if (!MyStandaloneGamePlayer(players[i].mo).fleemode && !doAim(i))
 			{
-				players[i].mo.A_SetPitch(
-										 (MyStandaloneGamePlayer(players[i].mo).plrpitch > 5 ? // Avoid hipfire to ground
-										  0 : MyStandaloneGamePlayer(players[i].mo).plrpitch) );
+				players[i].mo.A_SetPitch((MyStandaloneGamePlayer(players[i].mo).hipfire ? 0 :
+										  MyStandaloneGamePlayer(players[i].mo).plrpitch));
 			}
-			else players[i].mo.A_SetPitch(0);
 	    }
 	  }
 	}
