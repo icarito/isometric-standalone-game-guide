@@ -431,7 +431,7 @@ class MyStandaloneGamePlayer : PlayerPawn
 				  bool tbool = LineTrace(AngleTo(pointedmo), Distance3D(pointedmo),
 										 plrpitch, 0, player.ViewHeight*player.crouchfactor,
 										 0, 0, data:tt);
-				  nolos2shootable = !tbool || !(tt.HitType == TRACE_HitActor && tt.HitActor == pointedmo); // no line of sight
+				  nolos2shootable = !tbool || !(tt.HitType == TRACE_HitActor && tt.HitActor && tt.HitActor.bSHOOTABLE); // no line of sight
 				  if ((player.readyweapon && player.readyweapon.bMELEEWEAPON && pointedmo
 					   && (Distance3D(pointedmo) > MeleeRange + MELEEDELTA + pointedmo.Radius)))
 				  {
