@@ -58,7 +58,7 @@ class MyStandaloneGamePlayer : PlayerPawn
 		Player.WeaponSlot 1, "MyFist";
 		Player.WeaponSlot 2, "MyPlasmaPistol";
 		MyStandaloneGamePlayer.ppawn_isoyaw 225;
-		MyStandaloneGamePlayer.ppawn_isodist 300;
+		MyStandaloneGamePlayer.ppawn_isodist 400;
 		MyStandaloneGamePlayer.ppawn_isopitch 30;
 		MyStandaloneGamePlayer.mousex 0;
 		MyStandaloneGamePlayer.mousey 0;
