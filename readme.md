@@ -12,10 +12,10 @@
 
 ***
 
-![](./gzdoomgameplay.png)
+![](./docs/gzdoomgameplay.png)
 Doom original
 
-![](./sonic_robo_blast.jpg)
+![](./docs/sonic_robo_blast.png)
 Sonic Robo Blast 2
 
 ## 1. Preámbulo
@@ -28,7 +28,7 @@ Esta plantilla utiliza una **vista isométrica 2.5D**, donde el mundo se observa
 
 Este repositorio es una base para crear tu propio juego isométrico en GZDoom. No está limitado a disparos o combate: puedes desarrollar dinámicas como exploración, conversación con NPCs, resolución de acertijos, vuelo, o cualquier mecánica que imagines. El sistema es flexible y permite comenzar con sprites 2D, con la opción de incorporar modelos 3D más adelante.
 
-![](./screenshot1.png)
+![](./docs/screenshot1.png)
 
 El personaje principal podrá explorar el mundo y realizar acciones según la mecánica que definas. El inventario será visible en el HUD y podrás incluir NPCs, objetos y decoraciones según tu visión.
 
